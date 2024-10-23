@@ -5,6 +5,7 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "sysinfo.h"
 
 struct cpu cpus[NCPU];
 
@@ -701,4 +702,35 @@ void
 trace(int mask) {
   struct proc *p = myproc();
   p->mask = mask;
+}
+
+// calculate UNUSED proc num
+int
+nproc(void) {
+  int count = 0;
+  struct proc *p;
+  for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
+    if(p->state != UNUSED) {
+      count++;
+    }
+    release(&p->lock);
+  }
+  return count;
+}
+
+// copyout sysinfo to usermode
+// addr is a user virtual address, pointing to a struct sysinfo.
+int
+sysinfo(uint64 addr) {
+  struct sysinfo info;
+  struct proc *p = myproc();
+  info.nproc = nproc();
+  info.freemem = freemem();
+
+  if (copyout(p->pagetable, addr, (char *)&info, sizeof(info)) < 0) {
+    return -1;
+  }
+
+  return 0;
 }

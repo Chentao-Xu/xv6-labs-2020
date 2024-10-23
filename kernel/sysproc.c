@@ -108,3 +108,15 @@ sys_trace(void)
 
   return 0;
 }
+
+uint64
+sys_sysinfo(void)
+{
+  uint64 info;
+
+  if (argaddr(0, &info) < 0) {
+    return -1;
+  }
+
+  return sysinfo(info);
+}
