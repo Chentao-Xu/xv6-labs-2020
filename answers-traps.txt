@@ -1,0 +1,6 @@
+a2
+34:	600080e7          	jalr	1536(ra) # 630 <printf>
+return g(x)
+0000000000000630 <printf>:
+He110 World
+random number
