@@ -46,9 +46,19 @@ sys_sbrk(void)
 
   if(argint(0, &n) < 0)
     return -1;
+
   addr = myproc()->sz;
-  if(growproc(n) < 0)
+  struct proc* p = myproc();
+
+  // heap should not overlap stack
+  if (addr + n < p->trapframe->sp)
     return -1;
+
+  // handle the negative arguments
+  if (n < 0)
+    uvmdealloc(p->pagetable, p->sz, p->sz + n);
+
+  p->sz += n;
   return addr;
 }
 
