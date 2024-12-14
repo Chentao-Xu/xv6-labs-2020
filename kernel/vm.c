@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -311,7 +313,6 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -319,12 +320,17 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
+    
+    // change to read-only when parent can be write    
+    if (*pte & PTE_W) {
+      *pte |= PTE_COW;
+      *pte &= ~PTE_W;
+    }
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
-      goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+
+    ref_cnt_inc((uint64) pa);
+
+    if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
       goto err;
     }
   }
@@ -361,6 +367,22 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
+    
+    if (is_cow_page(va0)) {
+      pte_t *pte = walk(pagetable, va0, 0);
+      if (pte == 0)
+        return -1;
+      char * mem;
+      if ((mem = kalloc()) == 0) {
+        return -1;
+      }
+      memmove(mem, (char *)PTE2PA(*pte), PGSIZE);
+      kfree((void *)PTE2PA(*pte));
+      *pte = PA2PTE(mem) | PTE_FLAGS(*pte) | PTE_W;
+      *pte &= ~PTE_COW;
+      pa0 = (uint64)mem;
+    }
+
     n = PGSIZE - (dstva - va0);
     if(n > len)
       n = len;
@@ -438,5 +460,20 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return 0;
   } else {
     return -1;
+  }
+}
+
+int
+is_cow_page(uint64 va) {
+  struct proc *p = myproc();
+  if (va >= MAXVA || va >= p->sz)
+    return 0;
+  pte_t *pte = walk(p->pagetable, va, 0);
+  if (pte == 0)
+    return 0;
+  if ((*pte & PTE_COW) && (*pte & PTE_V)) {
+    return 1;
+  } else {
+    return 0;
   }
 }

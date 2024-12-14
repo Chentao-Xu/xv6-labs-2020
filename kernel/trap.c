@@ -65,6 +65,22 @@ usertrap(void)
     intr_on();
 
     syscall();
+  } else if (r_scause() == 15) {
+    uint64 va = r_stval();
+    if (is_cow_page(va)) {
+      pte_t *pte = walk(p->pagetable, va, 0);
+      char *mem;
+      if ((mem = kalloc()) == 0) {
+        p->killed = 1;
+      } else {
+        memmove(mem, (char *)PTE2PA(*pte), PGSIZE);
+        kfree((char *)PTE2PA(*pte));
+        *pte = PA2PTE(mem) | PTE_FLAGS(*pte) | PTE_W;
+        *pte &= ~PTE_COW;
+      }
+    } else {
+      p->killed = 1;
+    }
   } else if((which_dev = devintr()) != 0){
     // ok
   } else {
