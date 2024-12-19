@@ -1,0 +1,1 @@
+When running in user mode, processes can only access valid user memory regions as defined in their page tables, which include the user program code, data, and heap/stack. Attempts to access invalid pages (e.g., page 1) will result in a fault and be handled by the kernel.
