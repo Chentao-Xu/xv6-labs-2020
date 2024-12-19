@@ -1,0 +1,18 @@
+Thread 1: Calls put(42, 100).
+Calculates i = 42 % NBUCKET.
+Searches table[i] and finds that key 42 is not present (e == 0).
+Prepares to call insert() to add key 42.
+
+Context Switch to Thread 2:
+Thread 2 calls put(42, 200).
+Calculates i = 42 % NBUCKET (same bucket as Thread 1).
+Searches table[i] and also finds that key 42 is not present (e == 0).
+Calls insert() and successfully adds key 42 with value 200.
+
+Context Switch Back to Thread 1:
+Thread 1 resumes and calls insert() with key 42 and value 100.
+Overwrites table[i]'s head pointer with its new entry, effectively discarding Thread 2's changes.
+
+Result:
+Key 42 is present in the hash table, but earlier insertions or subsequent keys in the linked list (if any) may be lost.
+This corruption could lead to missing keys from the hash table.
